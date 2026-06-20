@@ -1,0 +1,12 @@
+# Spatial Locality Demo
+# Demonstrates how a larger block size fetches neighboring bytes,
+# turning subsequent misses into hits!
+
+# Memory Address is incrementing by 1 byte
+R 0x1000
+R 0x1001
+R 0x1002
+R 0x1003
+
+# Incrementing to the next block
+R 0x1004

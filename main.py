@@ -32,7 +32,7 @@ if mode == "Write-Back":
 
 st.sidebar.divider()
 st.sidebar.subheader("Trace File")
-src = st.sidebar.radio("Source", ["Belady's Anomaly", "Normal", "Fast Divergence", "Write-Back Demo", "Upload Custom Trace"])
+src = st.sidebar.radio("Source", ["Belady's Anomaly", "Normal", "Fast Divergence", "Write-Back Demo", "Spatial Locality", "Cache Thrashing", "Upload Custom Trace"])
 
 raw_text = ""
 if src == "Belady's Anomaly":
@@ -46,6 +46,12 @@ elif src == "Fast Divergence":
         raw_text = f.read()
 elif src == "Write-Back Demo":
     with open("traces/write_back_demo.txt", "r") as f:
+        raw_text = f.read()
+elif src == "Spatial Locality":
+    with open("traces/spatial_locality.txt", "r") as f:
+        raw_text = f.read()
+elif src == "Cache Thrashing":
+    with open("traces/thrashing.txt", "r") as f:
         raw_text = f.read()
 else:
     f_upload = st.sidebar.file_uploader("Upload .txt Trace", type=["txt"])
