@@ -29,7 +29,7 @@ def test_emat_calculation():
     # Read 2: MISS (120 ms)
     # Read 2: HIT (10 ms)
     # Total hits=2, misses=2 -> Miss Rate = 0.5
-    # Write-Through EMAT: hit_t + (MR * read_t) = 10 + (0.5 * 100) = 60.0 ms
+    # Write-Through EMAT: hit_t + (MR * (read_t + hit_t)) = 10 + (0.5 * 110) = 65.0 ms
     
     trace = "R 0x1000\nR 0x1000\nR 0x2000\nR 0x2000"
     ops = parse_trace(trace)
@@ -39,7 +39,7 @@ def test_emat_calculation():
     final_lru_state = history[-1]["lru"]
     assert final_lru_state["hits"] == 2
     assert final_lru_state["misses"] == 2
-    assert final_lru_state["amat"] == 60.0
+    assert final_lru_state["amat"] == 65.0
 
 def test_write_back_delayed_db_writes():
     """Verify that Write-Back mode delays DB writes until eviction."""

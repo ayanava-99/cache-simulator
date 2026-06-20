@@ -5,7 +5,7 @@ def parse_trace(file_content: str) -> List[Dict[str, Any]]:
     
     Args:
         file_content: The raw text of the trace file containing commands
-            like 'R 1' (Read key 1) or 'W 2 APPLE' (Write APPLE to key 2).
+            like 'R 0x1000' or 'W 0x2000 APPLE'.
             
     Returns:
         A list of dictionaries representing the operations. Each dict has:

@@ -18,9 +18,6 @@ class FIFOCache:
         self.capacity: int = cap
         self.cache: OrderedDict[str, str] = OrderedDict()
         self.dirty: Dict[str, bool] = {}
-        self.hits: int = 0
-        self.misses: int = 0
-        self.evictions: int = 0
 
     def get(self, k: str) -> Tuple[Optional[str], str]:
         """Attempt to retrieve an item from the cache without reordering.
@@ -33,9 +30,7 @@ class FIFOCache:
             If missed, value is None.
         """
         if k in self.cache:
-            self.hits += 1
             return self.cache[k], "HIT"
-        self.misses += 1
         return None, "MISS"
 
     def put(self, k: str, v: str) -> Tuple[Optional[str], Optional[str], bool]:
@@ -59,7 +54,6 @@ class FIFOCache:
             if len(self.cache) >= self.capacity:
                 ek, ev = self.cache.popitem(last=False)
                 was_dirty = self.dirty.pop(ek, False)
-                self.evictions += 1
             self.cache[k] = v
 
         self.dirty[k] = True
@@ -83,7 +77,6 @@ class FIFOCache:
         if len(self.cache) >= self.capacity:
             ek, ev = self.cache.popitem(last=False)
             was_dirty = self.dirty.pop(ek, False)
-            self.evictions += 1
         self.cache[k] = v
         self.dirty[k] = False
         return ek, ev, was_dirty
@@ -106,24 +99,10 @@ class FIFOCache:
                 res.append(None)
         return res
 
-    def hit_rate(self) -> float:
-        """Calculate the cache hit rate.
-        
-        Returns:
-            The hit rate as a percentage (0.0 to 100.0).
-        """
-        t = self.hits + self.misses
-        if t > 0:
-            return (self.hits / t) * 100.0
-        return 0.0
-
     def reset(self) -> None:
         """Clear the cache and reset all statistics."""
         self.cache.clear()
         self.dirty.clear()
-        self.hits = 0
-        self.misses = 0
-        self.evictions = 0
 
     def __len__(self) -> int:
         """Return the number of items currently in the cache."""

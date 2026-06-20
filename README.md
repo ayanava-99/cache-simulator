@@ -1,46 +1,61 @@
-# Cache Simulator
+# Hardware Cache Simulator
 
-An interactive, trace-driven cache simulator built with Python and Streamlit. Conceptually, this acts as a generic key-value/page-replacement simulator rather than a strict hardware cache simulator (there is no address/tag/index/offset modeling). It is designed to help students and developers visualize how different caching algorithms behave step-by-step under exactly the same workload.
+A visual, step-by-step hardware cache simulator built with Streamlit. This application mathematically models cache behavior at the hardware level, fully simulating **Tag, Index, and Offset bit manipulation**, set-associativity, and block-aligned memory access.
 
-It runs a side-by-side comparison of **LRU (Least Recently Used)** and **FIFO (First In First Out)** replacement policies. 
+It natively compares **Least Recently Used (LRU)** vs **First-In-First-Out (FIFO)** replacement policies side-by-side, rendering a real-time Cache Occupancy Heatmap to visually demonstrate cache pressure, thrashing, and Belady's Anomaly.
 
-## Features
+![Heatmap Demonstration](https://raw.githubusercontent.com/ayanava-99/cache-simulator/master/media/demo.png) *(Note: Add a screenshot here)*
 
-- **Trace-Driven**: Replay operations step-by-step using plain text trace files (e.g. `R 1`, `W 2 APPLE`).
-- **Policy Comparison**: Watch LRU and FIFO caches process the exact same operations in lockstep.
-- **Write Modes**: Toggle between **Write-Through** and **Write-Back** caching.
-- **Delayed Writes**: Watch the database visually fall out of sync from the cache when using Write-Back, updating only upon dirty evictions!
-- **Dynamic Benchmarking**: Real-time calculation of **EMAT (Effective Memory Access Time)**, explicitly declaring which policy is faster for the current workload.
-- **Belady's Anomaly Demo**: Includes built-in trace files designed specifically to trigger Belady's Anomaly (where increasing cache size *increases* miss rate).
+## Core Features
 
-## How to Run
+- **True Hardware Modeling:** Configure Address Size (up to 64-bit), Cache Size, Block Size, and N-Way Associativity. The engine dynamically calculates and isolates `Tag`, `Index`, and `Offset` bits via bitwise operators for mathematically accurate block fetching.
+- **Occupancy Heatmap UI:** A visual "bird's-eye" view of all cache sets. Instantly spot Set Conflicts and Thrashing without drowning in dataframes.
+- **Dynamic Policy Showdown:** Watch LRU and FIFO react to the same memory trace side-by-side.
+- **Write-Through vs Write-Back:** Tweak simulation timing (`T_hit`, `T_read`, `T_wb`) and observe how Write-Back delays Database (Memory) writes until a dirty eviction occurs.
+- **Dynamic EMAT Calculation:** Calculates Effective Memory Access Time based on live hit/miss and dirty-eviction rates.
 
-1. Ensure you have Streamlit installed:
-```bash
-pip install streamlit pandas
-```
+## Built-In Demonstration Traces
 
-2. Launch the application:
-```bash
-python -m streamlit run main.py
-```
+The simulator comes with 5 curated traces designed to mathematically trigger specific architecture phenomena:
+1. **Spatial Locality:** Proves how a 4-byte block size turns 3 subsequent misses into 3 free hits by fetching neighboring bytes.
+2. **Cache Thrashing (Conflict Misses):** Two addresses mapping to the exact same index kick each other out repeatedly—until you slide Associativity from 1 to 2!
+3. **Belady's Anomaly:** An exact mathematical sequence that proves giving a FIFO cache *more memory* can make it perform *worse*.
+4. **Write-Back Demo:** Shows how a Write-Back cache absorbs 3 immediate writes instantly, isolating main memory until a conflict forces a dirty eviction.
+5. **Fast Divergence:** A standard trace highlighting how quickly LRU and FIFO naturally diverge.
+
+## Installation & Usage
+
+1. Clone the repository
+2. Install requirements:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Run the Streamlit app:
+   ```bash
+   streamlit run main.py
+   ```
+
+## Creating Custom Traces
+You can upload your own `.txt` traces. The parser accepts hexadecimal memory addresses.
+
+**Format:**
+* Read: `R <hex_address>` (e.g., `R 0x1A2B`)
+* Write: `W <hex_address> <optional_value>` (e.g., `W 0x1A2B DATA`)
+
+Lines starting with `#` are ignored as comments.
 
 ## Project Structure
 
 ```text
-LRU/
-├── main.py        # Streamlit User Interface
-├── engine.py      # Core simulation engine that computes timelines
-├── parser.py      # Parses text trace files into commands
-├── lru.py         # LRU cache implementation
-├── fifo.py        # FIFO cache implementation
-├── database.py    # Mock database backend
-└── traces/        # Directory containing built-in trace demo files
+├── main.py            # Streamlit UI, Heatmap rendering, and user input validation
+├── engine.py          # Core hardware cache wrapper, bitwise math, and EMAT logic
+├── parser.py          # Parses hexadecimal traces into int/string structures
+├── database.py        # Simulated slow backing-store memory
+├── lru.py             # LRU Set Associative logic
+├── fifo.py            # FIFO Set Associative logic
+├── test_engine.py     # Pytest suite asserting EMAT math, Write-Back delays, and Belady
+├── requirements.txt   # Dependencies
+├── .github/
+│   └── workflows/     # CI/CD Pipeline (runs pytest on push)
+└── traces/            # Built-in demonstration trace files
 ```
-
-## Built-In Trace Demos
-
-- **Normal**: A standard mix of reads and writes.
-- **Belady's Anomaly**: Designed to show FIFO performing worse when given more capacity.
-- **Fast Divergence**: Forces LRU and FIFO to make different eviction choices early on.
-- **Write-Back Demo**: Explicitly forces dirty evictions to demonstrate delayed database writes.

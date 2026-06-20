@@ -6,16 +6,23 @@ import math
 from typing import List, Dict, Any, Tuple, Optional
 
 class HardwareCache:
+    @staticmethod
+    def calc_bits(address_bits: int, cache_size: int, block_size: int, ways: int) -> Tuple[int, int, int, int]:
+        num_sets = cache_size // (block_size * ways)
+        offset_bits = int(math.log2(block_size)) if block_size > 0 else 0
+        index_bits = int(math.log2(num_sets)) if num_sets > 0 else 0
+        tag_bits = address_bits - index_bits - offset_bits
+        return num_sets, offset_bits, index_bits, tag_bits
+
     def __init__(self, address_bits: int, cache_size: int, block_size: int, ways: int, policy: str):
         self.address_bits = address_bits
         self.cache_size = cache_size
         self.block_size = block_size
         self.ways = ways
-        self.num_sets = cache_size // (block_size * ways)
         
-        self.offset_bits = int(math.log2(block_size))
-        self.index_bits = int(math.log2(self.num_sets))
-        self.tag_bits = address_bits - self.index_bits - self.offset_bits
+        self.num_sets, self.offset_bits, self.index_bits, self.tag_bits = self.calc_bits(
+            address_bits, cache_size, block_size, ways
+        )
         
         if policy.lower() == "lru":
             self.sets = [LRUCache(ways) for _ in range(self.num_sets)]
@@ -54,6 +61,14 @@ class HardwareCache:
         return val, status, breakdown
 
     def put(self, addr_val: int, v: str) -> Tuple[Optional[str], Optional[str], bool, Dict[str, Any]]:
+        """Write an item to the cache.
+        
+        Note:
+            In this simulator, write operations do not increment global hit/miss 
+            counters. This is an intentional choice to isolate EMAT and hit-rate 
+            statistics to reflect read traffic (effectively modeling a non-write-allocate
+            or transparent write buffer abstraction for the sake of presentation).
+        """
         tag, index, offset = self._extract(addr_val)
         tag_hex = self._format_hex(tag, self.tag_bits)
         
@@ -165,12 +180,12 @@ def run_simulation(ops: List[Dict[str, Any]], address_bits: int, cache_size: int
             if tot == 0: return 0.0, "N/A"
             mr = cache.misses / tot
             if mode == "Write-Through":
-                emat = hit_t + (mr * read_t)
-                calc_str = f"EMAT = T_hit + (MissRate * T_read) = {hit_t} + ({mr:.2f} * {read_t}) = **{emat:.1f} ms**"
+                emat = hit_t + (mr * (read_t + hit_t))
+                calc_str = f"EMAT = T_hit + (MissRate * (T_read + T_hit)) = {hit_t} + ({mr:.2f} * ({read_t} + {hit_t})) = **{emat:.1f} ms**"
                 return emat, calc_str
             else:
-                emat = hit_t + (mr * (read_t + (dirty_pct * write_t)))
-                calc_str = f"EMAT = T_hit + (MissRate * (T_read + (DirtyRate * T_wb))) = {hit_t} + ({mr:.2f} * ({read_t} + ({dirty_pct:.2f} * {write_t}))) = **{emat:.1f} ms**"
+                emat = hit_t + (mr * (read_t + hit_t + (dirty_pct * write_t)))
+                calc_str = f"EMAT = T_hit + (MissRate * (T_read + T_hit + (DirtyRate * T_wb))) = {hit_t} + ({mr:.2f} * ({read_t} + {hit_t} + ({dirty_pct:.2f} * {write_t}))) = **{emat:.1f} ms**"
                 return emat, calc_str
                 
         lru_state = lru.get_state()

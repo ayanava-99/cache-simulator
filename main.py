@@ -12,6 +12,11 @@ address_bits = st.sidebar.selectbox("Address Size (bits)", [4, 8, 12, 16], index
 cache_size = st.sidebar.selectbox("Cache Size (Bytes)", [8, 16, 32, 64, 128, 256], index=3)
 block_size = st.sidebar.selectbox("Block Size (Bytes)", [2, 4, 8], index=1)
 
+max_memory = 2 ** address_bits
+if cache_size > max_memory:
+    st.sidebar.error(f"Cache size ({cache_size}B) cannot exceed address space ({max_memory}B).")
+    st.stop()
+
 max_ways = cache_size // block_size
 if max_ways < 1:
     st.sidebar.error("Cache Size must be >= Block Size")
@@ -109,11 +114,10 @@ breakdown = now["breakdown"]
 st.markdown(f"### Current Operation: `{now['raw']}`")
 if breakdown:
     # Binary breakdown visuals
-    # We recalculate the bits logic just for the UI rendering based on the breakdown dict.
-    num_sets = cache_size // (block_size * ways)
-    offset_bits = int(math.log2(block_size))
-    index_bits = int(math.log2(num_sets))
-    tag_bits = address_bits - index_bits - offset_bits
+    from engine import HardwareCache
+    num_sets, offset_bits, index_bits, tag_bits = HardwareCache.calc_bits(
+        address_bits, cache_size, block_size, ways
+    )
     
     st.info(f"**Tag ({tag_bits} bits):** `{breakdown['tag']}` | **Index ({index_bits} bits):** `{breakdown['index']}` | **Offset ({offset_bits} bits):** `{breakdown['offset']}`")
 

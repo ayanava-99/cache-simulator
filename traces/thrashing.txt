@@ -1,5 +1,5 @@
 # Cache Thrashing (Set Conflict) Demo
-# Demonstrates two memory addresses mapping to the Exact Same Set.
+# Two memory addresses mapping to the Exact Same Set.
 
 R 0x1000
 R 0x2000
