@@ -88,23 +88,22 @@ class FIFOCache:
         self.dirty[k] = False
         return ek, ev, was_dirty
 
-    def get_state(self) -> List[Dict[str, Any]]:
+    def get_state(self) -> List[Optional[Dict[str, Any]]]:
         """Return the current state of the cache for visualization.
         
         Returns:
-            A list of dictionaries containing the position, key, value, 
-            status (First In/Last In), and the dirty flag.
+            A list of length `self.capacity`. Empty slots are `None`.
+            Filled slots are dicts with 'tag', 'dirty', 'data'.
         """
         items = list(self.cache.items())
-        res: List[Dict[str, Any]] = []
-        for i, (k, v) in enumerate(items):
-            stat = ""
-            if len(items) > 1 and i == 0:
-                stat = "First in"
-            if i == len(items) - 1:
-                stat = "Last in"
-            is_dirty = self.dirty.get(k, False)
-            res.append({"Position": i + 1, "Key": k, "Value": v, "Status": stat, "IsDirty": is_dirty})
+        res: List[Optional[Dict[str, Any]]] = []
+        for i in range(self.capacity):
+            if i < len(items):
+                k, v = items[i]
+                is_dirty = self.dirty.get(k, False)
+                res.append({"tag": k, "data": v, "dirty": is_dirty})
+            else:
+                res.append(None)
         return res
 
     def hit_rate(self) -> float:

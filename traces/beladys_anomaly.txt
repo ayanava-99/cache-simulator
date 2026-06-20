@@ -1,16 +1,17 @@
-R 1
-R 2
-R 3
-R 4
-R 1
-R 2
-R 5
-R 1
-R 2
-R 3
-R 4
-R 5
-R 6
-R 7
-R 1
-R 2
+# Belady's Anomaly Trace
+# These addresses are crafted to map to the same set (Set 0) 
+# by varying the higher-order bits (Tag).
+# Access pattern: A, B, C, D, A, B, E, A, B, C, D, E
+
+R 0x1000
+R 0x2000
+R 0x3000
+R 0x4000
+R 0x1000
+R 0x2000
+R 0x5000
+R 0x1000
+R 0x2000
+R 0x3000
+R 0x4000
+R 0x5000

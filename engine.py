@@ -2,110 +2,161 @@ from lru import LRUCache
 from fifo import FIFOCache
 from database import SlowDatabase
 import copy
-from typing import List, Dict, Any, Tuple
+import math
+from typing import List, Dict, Any, Tuple, Optional
 
-def run_simulation(ops: List[Dict[str, Any]], capacity: int, mode: str, hit_t: int, read_t: int, write_t: int, dirty_pct: float = 0.0) -> List[Dict[str, Any]]:
-    """Execute the cache simulation for both LRU and FIFO in parallel.
-    
-    Args:
-        ops: A list of operation dictionaries parsed from the trace file.
-        capacity: Maximum cache size.
-        mode: Caching mode ("Write-Through" or "Write-Back").
-        hit_t: Cache access time (T_hit) in ms.
-        read_t: Database read time (T_read) in ms.
-        write_t: Database write time (T_wb) in ms.
-        dirty_pct: Percentage of evictions that are dirty (for EMAT calculation).
+class HardwareCache:
+    def __init__(self, address_bits: int, cache_size: int, block_size: int, ways: int, policy: str):
+        self.address_bits = address_bits
+        self.cache_size = cache_size
+        self.block_size = block_size
+        self.ways = ways
+        self.num_sets = cache_size // (block_size * ways)
+        
+        self.offset_bits = int(math.log2(block_size))
+        self.index_bits = int(math.log2(self.num_sets))
+        self.tag_bits = address_bits - self.index_bits - self.offset_bits
+        
+        if policy.lower() == "lru":
+            self.sets = [LRUCache(ways) for _ in range(self.num_sets)]
+        else:
+            self.sets = [FIFOCache(ways) for _ in range(self.num_sets)]
             
-    Returns:
-        A history list where each item is a snapshot dictionary of the system 
-        state at a specific step.
-    """
-    lru = LRUCache(capacity)
-    fifo = FIFOCache(capacity)
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
+
+    def _extract(self, addr_val: int) -> Tuple[int, int, int]:
+        offset = addr_val & ((1 << self.offset_bits) - 1)
+        index = (addr_val >> self.offset_bits) & ((1 << self.index_bits) - 1)
+        tag = addr_val >> (self.offset_bits + self.index_bits)
+        return tag, index, offset
+
+    def _format_hex(self, val: int, bits: int) -> str:
+        hex_chars = max(1, (bits + 3) // 4)
+        return f"0x{val:0{hex_chars}X}"
+        
+    def _reconstruct_addr(self, tag_val: int, index: int) -> str:
+        addr_val = (tag_val << (self.index_bits + self.offset_bits)) | (index << self.offset_bits)
+        return self._format_hex(addr_val, self.address_bits)
+
+    def get(self, addr_val: int) -> Tuple[Optional[str], str, Dict[str, Any]]:
+        tag, index, offset = self._extract(addr_val)
+        tag_hex = self._format_hex(tag, self.tag_bits)
+        
+        val, status = self.sets[index].get(tag_hex)
+        if status == "HIT":
+            self.hits += 1
+        else:
+            self.misses += 1
+            
+        breakdown = {"tag": tag_hex, "index": index, "offset": offset}
+        return val, status, breakdown
+
+    def put(self, addr_val: int, v: str) -> Tuple[Optional[str], Optional[str], bool, Dict[str, Any]]:
+        tag, index, offset = self._extract(addr_val)
+        tag_hex = self._format_hex(tag, self.tag_bits)
+        
+        ek_tag, ev, was_dirty = self.sets[index].put(tag_hex, v)
+        
+        ek_addr = None
+        if ek_tag:
+            self.evictions += 1
+            ek_tag_val = int(ek_tag, 16)
+            ek_addr = self._reconstruct_addr(ek_tag_val, index)
+            
+        breakdown = {"tag": tag_hex, "index": index, "offset": offset}
+        return ek_addr, ev, was_dirty, breakdown
+
+    def load(self, addr_val: int, v: str) -> Tuple[Optional[str], Optional[str], bool, Dict[str, Any]]:
+        tag, index, offset = self._extract(addr_val)
+        tag_hex = self._format_hex(tag, self.tag_bits)
+        
+        ek_tag, ev, was_dirty = self.sets[index].load(tag_hex, v)
+        
+        ek_addr = None
+        if ek_tag:
+            self.evictions += 1
+            ek_tag_val = int(ek_tag, 16)
+            ek_addr = self._reconstruct_addr(ek_tag_val, index)
+            
+        breakdown = {"tag": tag_hex, "index": index, "offset": offset}
+        return ek_addr, ev, was_dirty, breakdown
+        
+    def get_state(self) -> List[List[Optional[Dict[str, Any]]]]:
+        return [s.get_state() for s in self.sets]
+
+def run_simulation(ops: List[Dict[str, Any]], address_bits: int, cache_size: int, block_size: int, ways: int, mode: str, hit_t: int, read_t: int, write_t: int, dirty_pct: float = 0.0) -> List[Dict[str, Any]]:
+    lru = HardwareCache(address_bits, cache_size, block_size, ways, "lru")
+    fifo = HardwareCache(address_bits, cache_size, block_size, ways, "fifo")
     
     db_lru = SlowDatabase()
     db_fifo = SlowDatabase()
     
-    seed_data = {"1": "A", "2": "B", "3": "C", "4": "D", "5": "E", "6": "F", "7": "G", "8": "H", "9": "I", "10": "J"}
-    db_lru.seed(copy.deepcopy(seed_data))
-    db_fifo.seed(copy.deepcopy(seed_data))
+    # We don't pre-seed anymore because addresses are large hex strings.
+    # The database starts empty.
     
     history: List[Dict[str, Any]] = []
     
     for i, op in enumerate(ops):
-        k = str(op["key"])
+        addr_hex = op["addr_hex"]
+        addr_val = op["addr_val"]
         
-        def process_op(cache: Any, db: SlowDatabase) -> Tuple[str, str]:
-            """Process a single operation against a given cache and DB.
-            
-            Args:
-                cache: The cache instance (LRU or FIFO).
-                db: The database backend instance.
-                
-            Returns:
-                A tuple containing the operation message and an optional database update message.
-            """
-            evict_k = None
+        def process_op(cache: HardwareCache, db: SlowDatabase) -> Tuple[str, str, Dict[str, Any]]:
+            evict_addr = None
             db_msg = None
+            breakdown = None
+            
+            # Helper to block-align addresses for DB interaction
+            tag, index, _ = cache._extract(addr_val)
+            block_addr = cache._reconstruct_addr(tag, index)
+            
             if op["op"] == "W":
                 v = op["val"]
-                evict_k, evict_v, was_dirty = cache.put(k, v)
+                evict_addr, evict_v, was_dirty, breakdown = cache.put(addr_val, v)
                 
                 if mode == "Write-Through":
                     t = hit_t + write_t
-                    db.data[k] = v
-                    msg = f"WRITE k={k} v={v} | {t} ms"
-                    db_msg = f"DB UPDATED (Write-Through): k={k} v={v}"
+                    db.data[block_addr] = v
+                    msg = f"WRITE {addr_hex} v={v} | {t} ms"
+                    db_msg = f"DB UPDATED (Write-Through): {block_addr} = {v}"
                 else:
                     t = hit_t
-                    if evict_k and was_dirty:
+                    if evict_addr and was_dirty:
                         wt = t + write_t
-                        db.data[evict_k] = evict_v
+                        db.data[evict_addr] = evict_v
                         t = wt
-                        db_msg = f"DB UPDATED (Write-Back Eviction): k={evict_k} v={evict_v}"
-                    msg = f"WRITE k={k} v={v} | {t} ms"
+                        db_msg = f"DB UPDATED (Write-Back Eviction): {evict_addr} = {evict_v}"
+                    msg = f"WRITE {addr_hex} v={v} | {t} ms"
                     
-                if evict_k:
-                    msg += f" | EVICT {evict_k}"
+                if evict_addr:
+                    msg += f" | EVICT {evict_addr}"
                     
-                return msg, db_msg
+                return msg, db_msg, breakdown
                 
             else:
-                val, res = cache.get(k)
+                val, res, breakdown = cache.get(addr_val)
                 if res == "HIT":
                     t = hit_t
-                    msg = f"READ k={k} | HIT | {t} ms"
+                    msg = f"READ {addr_hex} | HIT | {t} ms"
                 else:
-                    db_val = db.data.get(k, None)
-                    if db_val is not None:
-                        evict_k, evict_v, was_dirty = cache.load(k, db_val)
-                        t = hit_t + read_t + hit_t
-                        if mode == "Write-Back" and evict_k and was_dirty:
-                            db.data[evict_k] = evict_v
-                            t += write_t
-                            db_msg = f"DB UPDATED (Write-Back Eviction): k={evict_k} v={evict_v}"
-                        msg = f"READ k={k} | MISS | {t} ms"
-                    else:
-                        t = hit_t + read_t
-                        msg = f"READ k={k} | NOT FOUND | {t} ms"
-                        evict_k = None
+                    db_val = db.data.get(block_addr, f"data_{block_addr}")
+                    evict_addr, evict_v, was_dirty, breakdown = cache.load(addr_val, db_val)
+                    t = hit_t + read_t + hit_t
+                    if mode == "Write-Back" and evict_addr and was_dirty:
+                        db.data[evict_addr] = evict_v
+                        t += write_t
+                        db_msg = f"DB UPDATED (Write-Back Eviction): {evict_addr} = {evict_v}"
+                    msg = f"READ {addr_hex} | MISS | {t} ms"
                         
-                if evict_k:
-                    msg += f" | EVICT {evict_k}"
-                return msg, db_msg
+                if evict_addr:
+                    msg += f" | EVICT {evict_addr}"
+                return msg, db_msg, breakdown
 
-        lru_msg, lru_db_msg = process_op(lru, db_lru)
-        fifo_msg, fifo_db_msg = process_op(fifo, db_fifo)
+        lru_msg, lru_db_msg, breakdown = process_op(lru, db_lru)
+        fifo_msg, fifo_db_msg, _ = process_op(fifo, db_fifo)
         
-        def compute_emat(cache: Any) -> Tuple[float, str]:
-            """Compute Effective Memory Access Time (EMAT) dynamically.
-            
-            Args:
-                cache: The cache instance with performance statistics.
-                
-            Returns:
-                A tuple containing the calculated EMAT float and the formatted formula string.
-            """
+        def compute_emat(cache: HardwareCache) -> Tuple[float, str]:
             tot = cache.hits + cache.misses
             if tot == 0: return 0.0, "N/A"
             mr = cache.misses / tot
@@ -127,6 +178,7 @@ def run_simulation(ops: List[Dict[str, Any]], capacity: int, mode: str, hit_t: i
         snapshot: Dict[str, Any] = {
             "step": i + 1,
             "raw": op["raw"],
+            "breakdown": breakdown,
             "lru": {
                 "state": lru_state,
                 "msg": lru_msg,

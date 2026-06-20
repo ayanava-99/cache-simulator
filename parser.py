@@ -31,13 +31,18 @@ def parse_trace(file_content: str) -> List[Dict[str, Any]]:
         if op not in ("R", "W"):
             raise ValueError(f"Line {i+1}: Unknown operation '{op}' in line: '{line}'")
         
-        key = parts[1]
+        addr_hex = parts[1]
+        try:
+            addr_val = int(addr_hex, 0)
+        except ValueError:
+            raise ValueError(f"Line {i+1}: Invalid address '{addr_hex}' in line: '{line}'")
+        
         val = None
         if op == "W":
             if len(parts) >= 3:
                 val = parts[2]
             else:
-                val = f"data_{key}" # Default value if not provided
+                val = f"data_{addr_hex}" # Default value if not provided
         
-        ops.append({"op": op, "key": key, "val": val, "raw": line})
+        ops.append({"op": op, "addr_hex": addr_hex, "addr_val": addr_val, "val": val, "raw": line})
     return ops

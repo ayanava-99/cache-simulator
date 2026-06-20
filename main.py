@@ -2,12 +2,22 @@ import streamlit as st
 import pandas as pd
 from parser import parse_trace
 from engine import run_simulation
+import math
 
-st.set_page_config(page_title="Cache Simulator", layout="wide")
-st.title("Cache Simulator")
+st.set_page_config(page_title="Hardware Cache Simulator", layout="wide")
+st.title("Hardware Cache Simulator")
 
-st.sidebar.subheader("Cache Configuration")
-cap = st.sidebar.slider("Cache Capacity", min_value=1, max_value=10, value=3)
+st.sidebar.subheader("Hardware Configuration")
+address_bits = st.sidebar.selectbox("Address Size (bits)", [16, 32, 64], index=0)
+cache_size = st.sidebar.number_input("Cache Size (Bytes)", min_value=1, value=64, step=1)
+block_size = st.sidebar.number_input("Block Size (Bytes)", min_value=1, value=4, step=1)
+
+max_ways = cache_size // block_size
+if max_ways < 1:
+    st.sidebar.error("Cache Size must be >= Block Size")
+    st.stop()
+
+ways = st.sidebar.selectbox("Associativity (Ways)", [w for w in [1, 2, 4, 8, 16] if w <= max_ways], index=0)
 mode = st.sidebar.selectbox("Write Mode", ["Write-Through", "Write-Back"])
 
 st.sidebar.divider()
@@ -50,11 +60,13 @@ if not raw_text:
     st.info("Please select or upload a trace file in the sidebar to begin.")
     st.stop()
 
-sim_key = f"{cap}_{mode}_{hit_t}_{read_t}_{write_t}_{dirty_pct}_{raw_text}"
+sim_key = f"{address_bits}_{cache_size}_{block_size}_{ways}_{mode}_{hit_t}_{read_t}_{write_t}_{dirty_pct}_{raw_text}"
 if "sim_key" not in st.session_state or st.session_state.sim_key != sim_key:
     try:
         ops = parse_trace(raw_text)
-        st.session_state.history = run_simulation(ops, cap, mode, hit_t, read_t, write_t, dirty_pct)
+        st.session_state.history = run_simulation(
+            ops, address_bits, cache_size, block_size, ways, mode, hit_t, read_t, write_t, dirty_pct
+        )
         st.session_state.sim_key = sim_key
         st.session_state.idx = 0
     except Exception as e:
@@ -85,7 +97,19 @@ if idx == 0:
     st.stop()
 
 now = history[idx - 1]
+breakdown = now["breakdown"]
+
+# Display operation breakdown banner
 st.markdown(f"### Current Operation: `{now['raw']}`")
+if breakdown:
+    # Binary breakdown visuals
+    # We recalculate the bits logic just for the UI rendering based on the breakdown dict.
+    num_sets = cache_size // (block_size * ways)
+    offset_bits = int(math.log2(block_size))
+    index_bits = int(math.log2(num_sets))
+    tag_bits = address_bits - index_bits - offset_bits
+    
+    st.info(f"**Tag ({tag_bits} bits):** `{breakdown['tag']}` | **Index ({index_bits} bits):** `{breakdown['index']}` | **Offset ({offset_bits} bits):** `{breakdown['offset']}`")
 
 lru_emat = now['lru'].get('amat', 0)
 fifo_emat = now['fifo'].get('amat', 0)
@@ -102,75 +126,39 @@ else:
     diff = lru_emat - fifo_emat
     st.success(f"**Preferred Policy: FIFO Cache!** It is {diff:.1f} ms faster per access on average.")
 
-lru_last = history[idx-2]['lru']['state'] if idx > 1 else []
-fifo_last = history[idx-2]['fifo']['state'] if idx > 1 else []
+def render_set_heatmap(sets_state, active_idx):
+    for i, ways_arr in enumerate(sets_state):
+        # active_idx can be None if the first step was a generic message without address breakdown, though here it's always set.
+        is_active = (active_idx is not None and i == active_idx)
+        with st.container(border=is_active):
+            cols = st.columns([1] + [1] * len(ways_arr))
+            cols[0].markdown(f"**Set {i}**")
+            for j, way in enumerate(ways_arr):
+                if way is None:
+                    cols[j + 1].markdown(":gray[–]")
+                elif way["dirty"]:
+                    cols[j + 1].markdown(f":orange[●] `{way['tag']}`")
+                else:
+                    cols[j + 1].markdown(f":green[●] `{way['tag']}`")
 
-lru_db_last = history[idx-2]['lru']['db_state'] if idx > 1 else {}
-fifo_db_last = history[idx-2]['fifo']['db_state'] if idx > 1 else {}
-
-def color_df(state, prev_state):
-    df = pd.DataFrame(state) if state else pd.DataFrame(columns=["Position", "Key", "Value", "Status", "IsDirty"])
-    prev_df = pd.DataFrame(prev_state) if prev_state else pd.DataFrame(columns=["Position", "Key", "Value", "Status", "IsDirty"])
-    
-    if not df.empty and "IsDirty" in df.columns:
-        if mode == "Write-Back":
-            df["Value"] = df.apply(lambda r: f"{r['Value']} *" if r["IsDirty"] else r["Value"], axis=1)
+def get_detail_df(sets_state, active_idx):
+    if active_idx is None or active_idx >= len(sets_state):
+        return pd.DataFrame(columns=["Way", "Tag", "Data", "Dirty"])
         
-        # Drop IsDirty before comparison so highlight logic ignores it
-        df_comp = df.drop(columns=["IsDirty"])
-    else:
-        df_comp = df
-        
-    if not prev_df.empty and "IsDirty" in prev_df.columns:
-        if mode == "Write-Back":
-            prev_df["Value"] = prev_df.apply(lambda r: f"{r['Value']} *" if r["IsDirty"] else r["Value"], axis=1)
-        prev_df_comp = prev_df.drop(columns=["IsDirty"])
-    else:
-        prev_df_comp = prev_df
-    
-    def apply_highlight(row):
-        i = row.name
-        if i >= len(prev_df_comp):
-            return ['background-color: rgba(40, 167, 69, 0.2)'] * len(row)
-        elif df_comp.iloc[i].to_dict() != prev_df_comp.iloc[i].to_dict():
-            return ['background-color: rgba(255, 193, 7, 0.2)'] * len(row)
-        return [''] * len(row)
-        
-    if not df_comp.empty:
-        return df_comp.style.apply(apply_highlight, axis=1)
-    return df_comp
-
-def format_db_df(db_dict):
-    df = pd.DataFrame([{"Key": k, "Value": v} for k, v in db_dict.items()])
-    if not df.empty:
-        df['SortKey'] = pd.to_numeric(df['Key'], errors='coerce')
-        df = df.sort_values(by=['SortKey', 'Key']).drop('SortKey', axis=1).reset_index(drop=True)
-    else:
-        df = pd.DataFrame(columns=["Key", "Value"])
-    return df
-
-def color_db_df(state_dict, prev_state_dict):
-    df = format_db_df(state_dict)
-    if df.empty: return df
-    
-    prev_dict = prev_state_dict if prev_state_dict else {}
-    
-    def apply_highlight(row):
-        k = row['Key']
-        v = row['Value']
-        if k not in prev_dict:
-            return ['background-color: rgba(40, 167, 69, 0.2)'] * len(row)
-        elif prev_dict[k] != v:
-            return ['background-color: rgba(255, 193, 7, 0.2)'] * len(row)
-        return [''] * len(row)
-        
-    return df.style.apply(apply_highlight, axis=1)
+    active_ways = sets_state[active_idx]
+    rows = []
+    for j, way in enumerate(active_ways):
+        if way is None:
+            rows.append({"Way": j, "Tag": "-", "Data": "-", "Dirty": "-"})
+        else:
+            rows.append({"Way": j, "Tag": way["tag"], "Data": way["data"], "Dirty": "Yes" if way["dirty"] else "No"})
+    return pd.DataFrame(rows)
 
 c_left, c_right = st.columns(2)
+active_idx = breakdown["index"] if breakdown else None
 
 with c_left:
     st.subheader("LRU Cache")
-    
     if "HIT" in now['lru']['msg']:
         st.success(now['lru']['msg'])
     elif "MISS" in now['lru']['msg']:
@@ -178,12 +166,18 @@ with c_left:
     else:
         st.info(now['lru']['msg'])
         
-    st.dataframe(color_df(now['lru']['state'], lru_last), use_container_width=True)
+    st.markdown("##### Cache Occupancy Heatmap")
+    render_set_heatmap(now['lru']['state'], active_idx)
     
-    st.markdown("#### Database")
+    st.markdown(f"##### Set {active_idx} Detail (LRU)")
+    st.dataframe(get_detail_df(now['lru']['state'], active_idx), use_container_width=True)
+    
+    st.markdown("##### Database (Memory)")
     if now['lru'].get('db_msg'):
         st.warning(now['lru']['db_msg'])
-    st.dataframe(color_db_df(now['lru']['db_state'], lru_db_last), use_container_width=True, height=200)
+    
+    db_df = pd.DataFrame([{"Block Addr": k, "Data": v} for k, v in now['lru']['db_state'].items()])
+    st.dataframe(db_df if not db_df.empty else pd.DataFrame(columns=["Block Addr", "Data"]), use_container_width=True, height=200)
     
     st.markdown("#### Stats")
     st.write(f"**Hits:** {now['lru']['hits']} | **Misses:** {now['lru']['misses']} | **Evictions:** {now['lru']['evictions']}")
@@ -193,7 +187,6 @@ with c_left:
 
 with c_right:
     st.subheader("FIFO Cache")
-    
     if "HIT" in now['fifo']['msg']:
         st.success(now['fifo']['msg'])
     elif "MISS" in now['fifo']['msg']:
@@ -201,12 +194,18 @@ with c_right:
     else:
         st.info(now['fifo']['msg'])
         
-    st.dataframe(color_df(now['fifo']['state'], fifo_last), use_container_width=True)
+    st.markdown("##### Cache Occupancy Heatmap")
+    render_set_heatmap(now['fifo']['state'], active_idx)
     
-    st.markdown("#### Database")
+    st.markdown(f"##### Set {active_idx} Detail (FIFO)")
+    st.dataframe(get_detail_df(now['fifo']['state'], active_idx), use_container_width=True)
+    
+    st.markdown("##### Database (Memory)")
     if now['fifo'].get('db_msg'):
         st.warning(now['fifo']['db_msg'])
-    st.dataframe(color_db_df(now['fifo']['db_state'], fifo_db_last), use_container_width=True, height=200)
+        
+    db_df_fifo = pd.DataFrame([{"Block Addr": k, "Data": v} for k, v in now['fifo']['db_state'].items()])
+    st.dataframe(db_df_fifo if not db_df_fifo.empty else pd.DataFrame(columns=["Block Addr", "Data"]), use_container_width=True, height=200)
     
     st.markdown("#### Stats")
     st.write(f"**Hits:** {now['fifo']['hits']} | **Misses:** {now['fifo']['misses']} | **Evictions:** {now['fifo']['evictions']}")
