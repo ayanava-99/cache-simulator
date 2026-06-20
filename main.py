@@ -109,20 +109,36 @@ lru_db_last = history[idx-2]['lru']['db_state'] if idx > 1 else {}
 fifo_db_last = history[idx-2]['fifo']['db_state'] if idx > 1 else {}
 
 def color_df(state, prev_state):
-    df = pd.DataFrame(state) if state else pd.DataFrame(columns=["Position", "Key", "Value", "Status"])
-    prev_df = pd.DataFrame(prev_state) if prev_state else pd.DataFrame(columns=["Position", "Key", "Value", "Status"])
+    df = pd.DataFrame(state) if state else pd.DataFrame(columns=["Position", "Key", "Value", "Status", "IsDirty"])
+    prev_df = pd.DataFrame(prev_state) if prev_state else pd.DataFrame(columns=["Position", "Key", "Value", "Status", "IsDirty"])
+    
+    if not df.empty and "IsDirty" in df.columns:
+        if mode == "Write-Back":
+            df["Value"] = df.apply(lambda r: f"{r['Value']} *" if r["IsDirty"] else r["Value"], axis=1)
+        
+        # Drop IsDirty before comparison so highlight logic ignores it
+        df_comp = df.drop(columns=["IsDirty"])
+    else:
+        df_comp = df
+        
+    if not prev_df.empty and "IsDirty" in prev_df.columns:
+        if mode == "Write-Back":
+            prev_df["Value"] = prev_df.apply(lambda r: f"{r['Value']} *" if r["IsDirty"] else r["Value"], axis=1)
+        prev_df_comp = prev_df.drop(columns=["IsDirty"])
+    else:
+        prev_df_comp = prev_df
     
     def apply_highlight(row):
         i = row.name
-        if i >= len(prev_df):
+        if i >= len(prev_df_comp):
             return ['background-color: rgba(40, 167, 69, 0.2)'] * len(row)
-        elif df.iloc[i].to_dict() != prev_df.iloc[i].to_dict():
+        elif df_comp.iloc[i].to_dict() != prev_df_comp.iloc[i].to_dict():
             return ['background-color: rgba(255, 193, 7, 0.2)'] * len(row)
         return [''] * len(row)
         
-    if not df.empty:
-        return df.style.apply(apply_highlight, axis=1)
-    return df
+    if not df_comp.empty:
+        return df_comp.style.apply(apply_highlight, axis=1)
+    return df_comp
 
 def format_db_df(db_dict):
     df = pd.DataFrame([{"Key": k, "Value": v} for k, v in db_dict.items()])

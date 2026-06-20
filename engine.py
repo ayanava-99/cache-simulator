@@ -90,10 +90,6 @@ def run_simulation(ops, capacity, mode, hit_t, read_t, write_t, dirty_pct=0.0):
         
         lru_emat, lru_emat_str = compute_emat(lru)
         fifo_emat, fifo_emat_str = compute_emat(fifo)
-        
-        if mode == "Write-Through":
-            for item in lru_state: item["Status"] = item["Status"].replace(" *", "")
-            for item in fifo_state: item["Status"] = item["Status"].replace(" *", "")
 
         snapshot = {
             "step": i + 1,

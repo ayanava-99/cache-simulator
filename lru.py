@@ -57,8 +57,8 @@ class LRUCache:
                 stat= "LRU"
             if i== len(items) - 1:
                 stat = "MRU"
-            df = " *" if self.dirty.get(k, False) else ""
-            res.append({"Position": i + 1, "Key": k, "Value": v, "Status": stat + df})
+            is_dirty = self.dirty.get(k, False)
+            res.append({"Position": i + 1, "Key": k, "Value": v, "Status": stat, "IsDirty": is_dirty})
         return res
 
     def hit_rate(self):

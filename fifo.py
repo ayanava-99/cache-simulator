@@ -64,8 +64,8 @@ class FIFOCache:
                 stat = "First in"
             if i == len(items) - 1:
                 stat= "last IN"
-            df= " *" if self.dirty.get(k,False) else ""
-            res.append({"Position": i+1,"Key":k,"Value":v,"Status":stat+df})
+            is_dirty = self.dirty.get(k, False)
+            res.append({"Position": i+1,"Key":k,"Value":v,"Status":stat, "IsDirty": is_dirty})
         return res
 
 
