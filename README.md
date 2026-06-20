@@ -1,4 +1,4 @@
-# Hardware Cache Simulator
+# Cache Simulator
 
 A visual, step-by-step hardware cache simulator built with Streamlit. This application mathematically models cache behavior at the hardware level, fully simulating **Tag, Index, and Offset bit manipulation**, set-associativity, and block-aligned memory access.
 

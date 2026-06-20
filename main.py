@@ -4,8 +4,8 @@ from parser import parse_trace
 from engine import run_simulation
 import math
 
-st.set_page_config(page_title="Hardware Cache Simulator", layout="wide")
-st.title("Hardware Cache Simulator")
+st.set_page_config(page_title="Cache Simulator", layout="wide")
+st.title("Cache Simulator")
 
 st.sidebar.subheader("Hardware Configuration")
 address_bits = st.sidebar.selectbox("Address Size (bits)", [4, 8, 12, 16], index=3)
