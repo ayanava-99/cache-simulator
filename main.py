@@ -227,3 +227,21 @@ with c_right:
     tot = now['fifo']['hits'] + now['fifo']['misses']
     st.write(f"**Hit Rate:** {now['fifo']['hits']/tot*100:.1f}%" if tot > 0 else "**Hit Rate:** -")
     st.markdown(now['fifo'].get('amat_str', f"**EMAT:** {now['fifo'].get('amat', 0):.1f} ms"))
+
+# ── Cumulative Miss-Rate Chart ──
+st.divider()
+st.subheader("Cumulative Miss Rate Over Time")
+
+chart_rows = []
+for s in history[:idx]:
+    step = s["step"]
+    for policy in ["lru", "fifo"]:
+        total = s[policy]["hits"] + s[policy]["misses"]
+        miss_rate = (s[policy]["misses"] / total * 100) if total > 0 else 0.0
+        chart_rows.append({"Step": step, "Policy": policy.upper(), "Miss Rate (%)": round(miss_rate, 1)})
+
+if chart_rows:
+    chart_df = pd.DataFrame(chart_rows)
+    # Pivot so each policy is a column for st.line_chart
+    pivot_df = chart_df.pivot(index="Step", columns="Policy", values="Miss Rate (%)")
+    st.line_chart(pivot_df, use_container_width=True)
