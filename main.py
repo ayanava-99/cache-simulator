@@ -71,6 +71,11 @@ if not raw_text:
     st.info("Please select or upload a trace file in the sidebar to begin.")
     st.stop()
 
+st.sidebar.divider()
+st.sidebar.markdown(
+    '[![View on GitHub](https://img.shields.io/badge/View_on_GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ayanava-99/cache-simulator)'
+)
+
 sim_key = f"{address_bits}_{cache_size}_{block_size}_{ways}_{mode}_{hit_t}_{read_t}_{write_t}_{dirty_pct}_{raw_text}"
 if "sim_key" not in st.session_state or st.session_state.sim_key != sim_key:
     try:
