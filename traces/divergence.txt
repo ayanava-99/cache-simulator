@@ -1,8 +1,9 @@
-# Divergence Trace
-# A simple sequence designed to show LRU and FIFO making different decisions.
+# LRU vs FIFO Divergence Trace
+# LRU remembers recency; FIFO does not.
+# At Step 5, LRU still has 0x1000 (HIT), FIFO evicted it (MISS).
 
 R 0x1000
 R 0x2000
+R 0x1000
 R 0x3000
 R 0x1000
-R 0x4000
