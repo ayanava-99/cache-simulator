@@ -1,6 +1,6 @@
 # Cache Simulator
 
-An interactive, trace-driven cache simulator built with Python and Streamlit. This tool is designed to help students and developers visualize how different caching algorithms behave step-by-step under exactly the same workload.
+An interactive, trace-driven cache simulator built with Python and Streamlit. Conceptually, this acts as a generic key-value/page-replacement simulator rather than a strict hardware cache simulator (there is no address/tag/index/offset modeling). It is designed to help students and developers visualize how different caching algorithms behave step-by-step under exactly the same workload.
 
 It runs a side-by-side comparison of **LRU (Least Recently Used)** and **FIFO (First In First Out)** replacement policies. 
 
