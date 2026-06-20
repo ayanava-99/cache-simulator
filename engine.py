@@ -140,7 +140,11 @@ def run_simulation(ops: List[Dict[str, Any]], address_bits: int, cache_size: int
                     t = hit_t
                     msg = f"READ {addr_hex} | HIT | {t} ms"
                 else:
-                    db_val = db.data.get(block_addr, f"data_{block_addr}")
+                    db_val = db.data.get(block_addr, None)
+                    if db_val is None:
+                        db_val = f"data_{block_addr}"
+                        db.data[block_addr] = db_val # Visually populate memory on first access
+                        
                     evict_addr, evict_v, was_dirty, breakdown = cache.load(addr_val, db_val)
                     t = hit_t + read_t + hit_t
                     if mode == "Write-Back" and evict_addr and was_dirty:
