@@ -8,9 +8,9 @@ st.set_page_config(page_title="Hardware Cache Simulator", layout="wide")
 st.title("Hardware Cache Simulator")
 
 st.sidebar.subheader("Hardware Configuration")
-address_bits = st.sidebar.selectbox("Address Size (bits)", [16, 32, 64], index=0)
-cache_size = st.sidebar.number_input("Cache Size (Bytes)", min_value=1, value=64, step=1)
-block_size = st.sidebar.number_input("Block Size (Bytes)", min_value=1, value=4, step=1)
+address_bits = st.sidebar.selectbox("Address Size (bits)", [4, 8, 12, 16], index=3)
+cache_size = st.sidebar.selectbox("Cache Size (Bytes)", [8, 16, 32, 64, 128, 256], index=3)
+block_size = st.sidebar.selectbox("Block Size (Bytes)", [2, 4, 8], index=1)
 
 max_ways = cache_size // block_size
 if max_ways < 1:
