@@ -8,9 +8,10 @@ st.set_page_config(page_title="Cache Simulator", layout="wide")
 st.title("Cache Simulator")
 
 st.sidebar.subheader("Hardware Configuration")
-address_bits = st.sidebar.selectbox("Address Size (bits)", [4, 8, 12, 16], index=3)
-cache_size = st.sidebar.selectbox("Cache Size (Bytes)", [8, 16, 32, 64, 128, 256], index=3)
-block_size = st.sidebar.selectbox("Block Size (Bytes)", [2, 4, 8], index=1)
+st.sidebar.markdown("**Address Size:** 8 bits &nbsp;|&nbsp; **Block Size:** 4 Bytes")
+address_bits = 8
+block_size = 4
+cache_size = st.sidebar.selectbox("Cache Size (Bytes)", [8, 12, 16], index=0)
 
 max_memory = 2 ** address_bits
 if cache_size > max_memory:
@@ -18,11 +19,7 @@ if cache_size > max_memory:
     st.stop()
 
 max_ways = cache_size // block_size
-if max_ways < 1:
-    st.sidebar.error("Cache Size must be >= Block Size")
-    st.stop()
-
-ways = st.sidebar.selectbox("Associativity (Ways)", [w for w in [1, 2, 4, 8, 16] if w <= max_ways], index=0)
+ways = st.sidebar.selectbox("Associativity (Ways)", [w for w in [1, 2, 3, 4] if w <= max_ways], index=0)
 mode = st.sidebar.selectbox("Write Mode", ["Write-Through", "Write-Back"])
 
 st.sidebar.divider()

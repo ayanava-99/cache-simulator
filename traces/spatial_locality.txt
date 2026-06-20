@@ -1,12 +1,11 @@
 # Spatial Locality Demo
-# Demonstrates how a larger block size fetches neighboring bytes,
-# turning subsequent misses into hits!
+# Block size = 4 bytes, so 0x10–0x13 are the same block.
+# First read is a miss; the next 3 are free hits!
 
-# Memory Address is incrementing by 1 byte
-R 0x1000
-R 0x1001
-R 0x1002
-R 0x1003
+R 0x10
+R 0x11
+R 0x12
+R 0x13
 
-# Incrementing to the next block
-R 0x1004
+# Crosses into the next block → miss again
+R 0x14
