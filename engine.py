@@ -2,8 +2,24 @@ from lru import LRUCache
 from fifo import FIFOCache
 from database import SlowDatabase
 import copy
+from typing import List, Dict, Any, Tuple
 
-def run_simulation(ops, capacity, mode, hit_t, read_t, write_t, dirty_pct=0.0):
+def run_simulation(ops: List[Dict[str, Any]], capacity: int, mode: str, hit_t: int, read_t: int, write_t: int, dirty_pct: float = 0.0) -> List[Dict[str, Any]]:
+    """Execute the cache simulation for both LRU and FIFO in parallel.
+    
+    Args:
+        ops: A list of operation dictionaries parsed from the trace file.
+        capacity: Maximum cache size.
+        mode: Caching mode ("Write-Through" or "Write-Back").
+        hit_t: Cache access time (T_hit) in ms.
+        read_t: Database read time (T_read) in ms.
+        write_t: Database write time (T_wb) in ms.
+        dirty_pct: Percentage of evictions that are dirty (for EMAT calculation).
+            
+    Returns:
+        A history list where each item is a snapshot dictionary of the system 
+        state at a specific step.
+    """
     lru = LRUCache(capacity)
     fifo = FIFOCache(capacity)
     
@@ -14,12 +30,21 @@ def run_simulation(ops, capacity, mode, hit_t, read_t, write_t, dirty_pct=0.0):
     db_lru.seed(copy.deepcopy(seed_data))
     db_fifo.seed(copy.deepcopy(seed_data))
     
-    history = []
+    history: List[Dict[str, Any]] = []
     
     for i, op in enumerate(ops):
         k = str(op["key"])
         
-        def process_op(cache, db):
+        def process_op(cache: Any, db: SlowDatabase) -> Tuple[str, str]:
+            """Process a single operation against a given cache and DB.
+            
+            Args:
+                cache: The cache instance (LRU or FIFO).
+                db: The database backend instance.
+                
+            Returns:
+                A tuple containing the operation message and an optional database update message.
+            """
             evict_k = None
             db_msg = None
             if op["op"] == "W":
@@ -72,7 +97,15 @@ def run_simulation(ops, capacity, mode, hit_t, read_t, write_t, dirty_pct=0.0):
         lru_msg, lru_db_msg = process_op(lru, db_lru)
         fifo_msg, fifo_db_msg = process_op(fifo, db_fifo)
         
-        def compute_emat(cache):
+        def compute_emat(cache: Any) -> Tuple[float, str]:
+            """Compute Effective Memory Access Time (EMAT) dynamically.
+            
+            Args:
+                cache: The cache instance with performance statistics.
+                
+            Returns:
+                A tuple containing the calculated EMAT float and the formatted formula string.
+            """
             tot = cache.hits + cache.misses
             if tot == 0: return 0.0, "N/A"
             mr = cache.misses / tot
@@ -91,7 +124,7 @@ def run_simulation(ops, capacity, mode, hit_t, read_t, write_t, dirty_pct=0.0):
         lru_emat, lru_emat_str = compute_emat(lru)
         fifo_emat, fifo_emat_str = compute_emat(fifo)
 
-        snapshot = {
+        snapshot: Dict[str, Any] = {
             "step": i + 1,
             "raw": op["raw"],
             "lru": {

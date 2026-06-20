@@ -1,78 +1,133 @@
 from collections import OrderedDict
+from typing import Optional, Tuple, List, Dict, Any
 
 class LRUCache:
-    def __init__(self, cap):
-        self.capacity = cap
-        self.cache =OrderedDict()
-        self.dirty= {}
-        self.hits =0
-        self.misses = 0
-        self.evictions = 0
+    """Least Recently Used (LRU) Cache policy simulator.
+    
+    This class tracks the cache state, including the items, their dirty bits,
+    and performance statistics (hits, misses, evictions). It uses an OrderedDict
+    to efficiently maintain the MRU/LRU order.
+    """
+    
+    def __init__(self, cap: int) -> None:
+        """Initialize the LRU Cache.
+        
+        Args:
+            cap: Maximum number of items the cache can hold.
+        """
+        self.capacity: int = cap
+        self.cache: OrderedDict[str, str] = OrderedDict()
+        self.dirty: Dict[str, bool] = {}
+        self.hits: int = 0
+        self.misses: int = 0
+        self.evictions: int = 0
 
-    def get(self, k):
+    def get(self, k: str) -> Tuple[Optional[str], str]:
+        """Attempt to retrieve an item from the cache.
+        
+        Args:
+            k: The key to look up.
+            
+        Returns:
+            A tuple of (value, status) where status is 'HIT' or 'MISS'.
+            If missed, value is None.
+        """
         if k in self.cache:
             self.cache.move_to_end(k)
             self.hits += 1
-            return self.cache[k],"HIT"
+            return self.cache[k], "HIT"
         self.misses += 1
-        return None,"MISS"
+        return None, "MISS"
 
-    def put(self, k, v):
-        ek = None
-        ev = None
-        was_dirty = False
-
+    def put(self, k: str, v: str) -> Tuple[Optional[str], Optional[str], bool]:
+        """Write an item to the cache, marking it as dirty.
+        
+        Args:
+            k: The key to write.
+            v: The value to write.
+            
+        Returns:
+            A tuple of (evicted_key, evicted_value, was_dirty) if an eviction
+            occurred, otherwise (None, None, False).
+        """
+        ek: Optional[str] = None
+        ev: Optional[str] = None
+        was_dirty: bool = False
 
         if k in self.cache:
             self.cache.move_to_end(k)
             self.cache[k] = v
         else:
-
             if len(self.cache) >= self.capacity:
                 ek, ev = self.cache.popitem(last=False)
                 was_dirty = self.dirty.pop(ek, False)
                 self.evictions += 1
-            self.cache[k]= v
+            self.cache[k] = v
 
         self.dirty[k] = True
-        return ek,ev,was_dirty
+        return ek, ev, was_dirty
 
-    def load(self, k, v):
-        ev,ek =None, None
-        was_dirty = False
+    def load(self, k: str, v: str) -> Tuple[Optional[str], Optional[str], bool]:
+        """Load an item into the cache from the database (not dirty).
+        
+        Args:
+            k: The key to load.
+            v: The value retrieved from the database.
+            
+        Returns:
+            A tuple of (evicted_key, evicted_value, was_dirty) if an eviction
+            occurred, otherwise (None, None, False).
+        """
+        ek: Optional[str] = None
+        ev: Optional[str] = None
+        was_dirty: bool = False
+        
         if len(self.cache) >= self.capacity:
             ek, ev = self.cache.popitem(last=False)
-            was_dirty =self.dirty.pop(ek, False)
-            self.evictions +=1
-        self.cache[k]= v
+            was_dirty = self.dirty.pop(ek, False)
+            self.evictions += 1
+        self.cache[k] = v
         self.dirty[k] = False
         return ek, ev, was_dirty
 
-    def get_state(self):
+    def get_state(self) -> List[Dict[str, Any]]:
+        """Return the current state of the cache for visualization.
+        
+        Returns:
+            A list of dictionaries containing the position, key, value, 
+            status (LRU/MRU), and the dirty flag.
+        """
         items = list(self.cache.items())
-        res = []
+        res: List[Dict[str, Any]] = []
         for i, (k, v) in enumerate(items):
             stat = ""
-            if len(items)>1 and i== 0:
-                stat= "LRU"
-            if i== len(items) - 1:
+            if len(items) > 1 and i == 0:
+                stat = "LRU"
+            if i == len(items) - 1:
                 stat = "MRU"
             is_dirty = self.dirty.get(k, False)
             res.append({"Position": i + 1, "Key": k, "Value": v, "Status": stat, "IsDirty": is_dirty})
         return res
 
-    def hit_rate(self):
+    def hit_rate(self) -> float:
+        """Calculate the cache hit rate.
+        
+        Returns:
+            The hit rate as a percentage (0.0 to 100.0).
+        """
         t = self.hits + self.misses
         if t > 0:
-            return (self.hits/t) *100
+            return (self.hits / t) * 100.0
         return 0.0
 
-    def reset(self):
+    def reset(self) -> None:
+        """Clear the cache and reset all statistics."""
         self.cache.clear()
         self.dirty.clear()
-        self.hits =0
-        self.misses=0
-        self.evictions= 0
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the number of items currently in the cache."""
         return len(self.cache)
