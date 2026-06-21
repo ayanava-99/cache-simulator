@@ -1,27 +1,28 @@
-# Cache Simulator
+# Hardware Cache Simulator
 
 A visual, step-by-step hardware cache simulator built with Streamlit. This application mathematically models cache behavior at the hardware level, fully simulating **Tag, Index, and Offset bit manipulation**, set-associativity, and block-aligned memory access.
 
-It natively compares **Least Recently Used (LRU)** vs **First-In-First-Out (FIFO)** replacement policies side-by-side, rendering a real-time Cache Occupancy Heatmap to visually demonstrate cache pressure, thrashing, and Belady's Anomaly.
+It natively compares **Least Recently Used (LRU)** vs **First-In-First-Out (FIFO)** replacement policies side-by-side, rendering a real-time Cache Occupancy Heatmap and an **EMAT (Effective Memory Access Time) graph** to visually demonstrate cache pressure, thrashing, and Belady's Anomaly.
 
 ![Heatmap Demonstration](https://raw.githubusercontent.com/ayanava-99/cache-simulator/master/media/demo.png)
 
 ## Core Features
 
-- **True Hardware Modeling:** Configure Address Size (up to 64-bit), Cache Size, Block Size, and N-Way Associativity. The engine dynamically calculates and isolates `Tag`, `Index`, and `Offset` bits via bitwise operators for mathematically accurate block fetching.
-- **Occupancy Heatmap UI:** A visual "bird's-eye" view of all cache sets. Instantly spot Set Conflicts and Thrashing without drowning in dataframes.
+- **True Hardware Modeling:** Built on an 8-bit memory address space with 4-byte block sizes. Configure Cache Size and N-Way Associativity. The engine dynamically calculates and isolates `Tag`, `Index`, and `Offset` bits via bitwise operators for mathematically accurate block fetching.
+- **Occupancy Heatmap UI:** A visual "bird's-eye" view of all cache sets. Instantly spot Set Conflicts and Thrashing without drowning in data tables.
+- **EMAT Over Time Graph:** Watch the 🔵 LRU and 🔴 FIFO performance lines naturally diverge in real-time as the simulation progresses.
 - **Dynamic Policy Showdown:** Watch LRU and FIFO react to the same memory trace side-by-side.
-- **Write-Through vs Write-Back:** Tweak simulation timing (`T_hit`, `T_read`, `T_wb`) and observe how Write-Back delays Database (Memory) writes until a dirty eviction occurs.
-- **Dynamic EMAT Calculation:** Calculates Effective Memory Access Time based on live hit/miss and dirty-eviction rates.
+- **Write-Through vs Write-Back:** Observe how Write-Back delays Database (Memory) writes until a dirty eviction occurs, absorbing multiple writes to the same block instantly.
 
 ## Built-In Demonstration Traces
 
-The simulator comes with 5 curated traces designed to mathematically trigger specific architecture phenomena:
-1. **Spatial Locality:** Proves how a 4-byte block size turns 3 subsequent misses into 3 free hits by fetching neighboring bytes.
-2. **Cache Thrashing (Conflict Misses):** Two addresses mapping to the exact same index kick each other out repeatedly—until you slide Associativity from 1 to 2!
-3. **Belady's Anomaly:** An exact mathematical sequence that proves giving a FIFO cache *more memory* can make it perform *worse*.
+The simulator comes with 5 curated traces designed to mathematically trigger specific architecture phenomena. The sidebar traces are perfectly ordered for a sequential interview or presentation flow:
+
+1. **Spatial Locality:** Proves how a 4-byte block size turns 1 miss into 3 free hits by fetching neighboring bytes.
+2. **Cache Thrashing (Conflict Misses):** Two addresses map to the exact same index and kick each other out repeatedly—until you slide Associativity from 1 to 2, jumping the hit rate from 0% to 67%.
+3. **Fast Divergence:** A trace highlighting exactly where LRU's MRU promotion algorithm saves a hit that FIFO misses.
 4. **Write-Back Demo:** Shows how a Write-Back cache absorbs 3 immediate writes instantly, isolating main memory until a conflict forces a dirty eviction.
-5. **Fast Divergence:** A standard trace highlighting how quickly LRU and FIFO naturally diverge.
+5. **Belady's Anomaly:** An exact mathematical sequence that proves giving a FIFO cache *more memory* actually makes it perform *worse*.
 
 ## Installation & Usage
 
@@ -39,15 +40,15 @@ The simulator comes with 5 curated traces designed to mathematically trigger spe
 You can upload your own `.txt` traces. The parser accepts hexadecimal memory addresses.
 
 **Format:**
-* Read: `R <hex_address>` (e.g., `R 0x1A2B`)
-* Write: `W <hex_address> <optional_value>` (e.g., `W 0x1A2B DATA`)
+* Read: `R <hex_address>` (e.g., `R 0x10`)
+* Write: `W <hex_address> <optional_value>` (e.g., `W 0x10 DATA`)
 
 Lines starting with `#` are ignored as comments.
 
 ## Project Structure
 
 ```text
-├── main.py            # Streamlit UI, Heatmap rendering, and user input validation
+├── main.py            # Streamlit UI, Heatmap rendering, and EMAT graphing
 ├── engine.py          # Core hardware cache wrapper, bitwise math, and EMAT logic
 ├── parser.py          # Parses hexadecimal traces into int/string structures
 ├── database.py        # Simulated slow backing-store memory
@@ -57,5 +58,6 @@ Lines starting with `#` are ignored as comments.
 ├── requirements.txt   # Dependencies
 ├── .github/
 │   └── workflows/     # CI/CD Pipeline (runs pytest on push)
+├── media/             # Demo screenshots
 └── traces/            # Built-in demonstration trace files
 ```
