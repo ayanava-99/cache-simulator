@@ -4,7 +4,7 @@ A visual, step-by-step hardware cache simulator built with Streamlit. This appli
 
 It natively compares **Least Recently Used (LRU)** vs **First-In-First-Out (FIFO)** replacement policies side-by-side, rendering a real-time Cache Occupancy Heatmap to visually demonstrate cache pressure, thrashing, and Belady's Anomaly.
 
-![Heatmap Demonstration](https://raw.githubusercontent.com/ayanava-99/cache-simulator/master/media/demo.png) *(Note: Add a screenshot here)*
+![Heatmap Demonstration](https://raw.githubusercontent.com/ayanava-99/cache-simulator/master/media/demo.png)
 
 ## Core Features
 
