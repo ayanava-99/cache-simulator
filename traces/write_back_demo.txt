@@ -1,10 +1,9 @@
-# Write-Back Delayed Eviction Demo
-# 3 writes absorb instantly in cache (dirty bit).
-# The 4th operation forces an eviction → DB finally updates.
-
-W 0x10 0xAA
-W 0x10 0xBB
-W 0x10 0xCC
-
-# This read conflicts with 0x10 in Set 0 → dirty eviction
-R 0x20
+W 1 A
+W 1 B
+W 1 C
+W 1 D
+R 2
+R 3
+W 2 E
+R 2
+R 2

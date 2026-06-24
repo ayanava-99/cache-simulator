@@ -1,9 +1,0 @@
-# LRU vs FIFO Divergence
-# Step 3 re-accesses 0x10 — LRU promotes it, FIFO doesn't.
-# At Step 5, LRU still has 0x10 (HIT), FIFO lost it (MISS).
-
-R 0x10
-R 0x20
-R 0x10
-R 0x30
-R 0x10

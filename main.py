@@ -2,24 +2,12 @@ import streamlit as st
 import pandas as pd
 from parser import parse_trace
 from engine import run_simulation
-import math
 
 st.set_page_config(page_title="Cache Simulator", layout="wide")
 st.title("Cache Simulator")
 
-st.sidebar.subheader("Hardware Configuration")
-st.sidebar.markdown("**Address Size:** 8 bits &nbsp;|&nbsp; **Block Size:** 4 Bytes")
-address_bits = 8
-block_size = 4
-cache_size = st.sidebar.selectbox("Cache Size (Bytes)", [8, 12, 16], index=0)
-
-max_memory = 2 ** address_bits
-if cache_size > max_memory:
-    st.sidebar.error(f"Cache size ({cache_size}B) cannot exceed address space ({max_memory}B).")
-    st.stop()
-
-max_ways = cache_size // block_size
-ways = st.sidebar.selectbox("Associativity (Ways)", [w for w in [1, 2, 3, 4] if w <= max_ways], index=0)
+st.sidebar.subheader("Configuration")
+cache_size = st.sidebar.number_input("Cache Capacity (items)", min_value=1, max_value=32, value=4)
 mode = st.sidebar.selectbox("Write Mode", ["Write-Through", "Write-Back"])
 
 st.sidebar.divider()
@@ -34,23 +22,17 @@ if mode == "Write-Back":
 
 st.sidebar.divider()
 st.sidebar.subheader("Trace File")
-src = st.sidebar.radio("Source", ["Spatial Locality", "Cache Thrashing", "Fast Divergence", "Write-Back Demo", "Belady's Anomaly", "Upload Custom Trace"])
+src = st.sidebar.radio("Source", ["LRU vs FIFO Demo", "Write-Back Demo", "Belady's Anomaly Demo", "Upload Custom Trace"])
 
 raw_text = ""
-if src == "Spatial Locality":
-    with open("traces/spatial_locality.txt", "r") as f:
-        raw_text = f.read()
-elif src == "Cache Thrashing":
-    with open("traces/thrashing.txt", "r") as f:
-        raw_text = f.read()
-elif src == "Fast Divergence":
-    with open("traces/divergence.txt", "r") as f:
-        raw_text = f.read()
-elif src == "Write-Back Demo":
+if src == "Write-Back Demo":
     with open("traces/write_back_demo.txt", "r") as f:
         raw_text = f.read()
-elif src == "Belady's Anomaly":
-    with open("traces/beladys_anomaly.txt", "r") as f:
+elif src == "LRU vs FIFO Demo":
+    with open("traces/lru_vs_fifo_demo.txt", "r") as f:
+        raw_text = f.read()
+elif src == "Belady's Anomaly Demo":
+    with open("traces/beladys_anomaly_demo.txt", "r") as f:
         raw_text = f.read()
 else:
     f_upload = st.sidebar.file_uploader("Upload .txt Trace", type=["txt"])
@@ -70,12 +52,12 @@ st.sidebar.markdown(
     '[![View on GitHub](https://img.shields.io/badge/View_on_GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ayanava-99/cache-simulator)'
 )
 
-sim_key = f"{address_bits}_{cache_size}_{block_size}_{ways}_{mode}_{hit_t}_{read_t}_{write_t}_{dirty_pct}_{raw_text}"
+sim_key = f"{cache_size}_{mode}_{hit_t}_{read_t}_{write_t}_{dirty_pct}_{raw_text}"
 if "sim_key" not in st.session_state or st.session_state.sim_key != sim_key:
     try:
         ops = parse_trace(raw_text)
         st.session_state.history = run_simulation(
-            ops, address_bits, cache_size, block_size, ways, mode, hit_t, read_t, write_t, dirty_pct
+            ops, cache_size, mode, hit_t, read_t, write_t, dirty_pct
         )
         st.session_state.sim_key = sim_key
         st.session_state.idx = 0
@@ -89,36 +71,22 @@ if not history:
     st.stop()
 
 st.subheader("Steps")
-idx = st.slider("Step", 0, len(history), st.session_state.idx, label_visibility="collapsed")
+idx = st.slider("Step", 0, len(history) - 1, st.session_state.idx, label_visibility="collapsed")
 st.session_state.idx = idx
 
 btn_prev, btn_next, _ = st.columns([1, 1, 8])
 if btn_prev.button("Prev Step") and st.session_state.idx > 0:
     st.session_state.idx -= 1
     st.rerun()
-if btn_next.button("Next Step") and st.session_state.idx < len(history):
+if btn_next.button("Next Step") and st.session_state.idx < len(history) - 1:
     st.session_state.idx += 1
     st.rerun()
 
 st.divider()
 
-if idx == 0:
-    st.info("Simulation initialized. Press 'Next Step' or use the slider to begin.")
-    st.stop()
+now = history[idx]
 
-now = history[idx - 1]
-breakdown = now["breakdown"]
-
-# Display operation breakdown banner
 st.markdown(f"### Current Operation: `{now['raw']}`")
-if breakdown:
-    # Binary breakdown visuals
-    from engine import HardwareCache
-    num_sets, offset_bits, index_bits, tag_bits = HardwareCache.calc_bits(
-        address_bits, cache_size, block_size, ways
-    )
-    
-    st.info(f"**Tag ({tag_bits} bits):** `{breakdown['tag']}` | **Index ({index_bits} bits):** `{breakdown['index']}` | **Offset ({offset_bits} bits):** `{breakdown['offset']}`")
 
 lru_emat = now['lru'].get('amat', 0)
 fifo_emat = now['fifo'].get('amat', 0)
@@ -135,36 +103,16 @@ else:
     diff = lru_emat - fifo_emat
     st.success(f"**Preferred Policy: FIFO Cache!** It is {diff:.1f} ms faster per access on average.")
 
-def render_set_heatmap(sets_state, active_idx):
-    for i, ways_arr in enumerate(sets_state):
-        # active_idx can be None if the first step was a generic message without address breakdown, though here it's always set.
-        is_active = (active_idx is not None and i == active_idx)
-        with st.container(border=is_active):
-            cols = st.columns([1] + [1] * len(ways_arr))
-            cols[0].markdown(f"**Set {i}**")
-            for j, way in enumerate(ways_arr):
-                if way is None:
-                    cols[j + 1].markdown(":gray[–]")
-                elif way["dirty"]:
-                    cols[j + 1].markdown(f":orange[●] `{way['tag']}`")
-                else:
-                    cols[j + 1].markdown(f":green[●] `{way['tag']}`")
-
-def get_detail_df(sets_state, active_idx):
-    if active_idx is None or active_idx >= len(sets_state):
-        return pd.DataFrame(columns=["Way", "Tag", "Data", "Dirty"])
-        
-    active_ways = sets_state[active_idx]
+def render_cache_list(cache_state):
     rows = []
-    for j, way in enumerate(active_ways):
-        if way is None:
-            rows.append({"Way": j, "Tag": "-", "Data": "-", "Dirty": "-"})
+    for j, item in enumerate(cache_state):
+        if item is None:
+            rows.append({"Index": j, "Key": "-", "Data": "-", "Dirty": "-"})
         else:
-            rows.append({"Way": j, "Tag": way["tag"], "Data": way["data"], "Dirty": "Yes" if way["dirty"] else "No"})
+            rows.append({"Index": j, "Key": item["key"], "Data": item["data"], "Dirty": "Yes" if item["dirty"] else "No"})
     return pd.DataFrame(rows)
 
 c_left, c_right = st.columns(2)
-active_idx = breakdown["index"] if breakdown else None
 
 with c_left:
     st.subheader("LRU Cache")
@@ -175,18 +123,23 @@ with c_left:
     else:
         st.info(now['lru']['msg'])
         
-    st.markdown("##### Cache Occupancy Heatmap")
-    render_set_heatmap(now['lru']['state'], active_idx)
-    
-    st.markdown(f"##### Set {active_idx} Detail (LRU)")
-    st.dataframe(get_detail_df(now['lru']['state'], active_idx), use_container_width=True)
+    st.markdown("##### Cache State")
+    st.dataframe(render_cache_list(now['lru']['state']), use_container_width=True)
     
     st.markdown("##### Database (Memory)")
     if now['lru'].get('db_msg'):
         st.warning(now['lru']['db_msg'])
     
-    db_df = pd.DataFrame([{"Block Addr": k, "Data": v} for k, v in now['lru']['db_state'].items()])
-    st.dataframe(db_df if not db_df.empty else pd.DataFrame(columns=["Block Addr", "Data"]), use_container_width=True, height=200)
+    db_df = pd.DataFrame([{"Key": k, "Data": v} for k, v in now['lru']['db_state'].items()])
+    if not db_df.empty:
+        updated_key_lru = now['lru'].get('db_updated_key')
+        def highlight_lru(row):
+            if row['Key'] == updated_key_lru:
+                return ['background-color: rgba(46, 125, 50, 0.5)'] * len(row)
+            return [''] * len(row)
+        st.dataframe(db_df.style.apply(highlight_lru, axis=1), use_container_width=True, height=200)
+    else:
+        st.dataframe(pd.DataFrame(columns=["Key", "Data"]), use_container_width=True, height=200)
     
     st.markdown("#### Stats")
     st.write(f"**Hits:** {now['lru']['hits']} | **Misses:** {now['lru']['misses']} | **Evictions:** {now['lru']['evictions']}")
@@ -203,18 +156,23 @@ with c_right:
     else:
         st.info(now['fifo']['msg'])
         
-    st.markdown("##### Cache Occupancy Heatmap")
-    render_set_heatmap(now['fifo']['state'], active_idx)
-    
-    st.markdown(f"##### Set {active_idx} Detail (FIFO)")
-    st.dataframe(get_detail_df(now['fifo']['state'], active_idx), use_container_width=True)
+    st.markdown("##### Cache State")
+    st.dataframe(render_cache_list(now['fifo']['state']), use_container_width=True)
     
     st.markdown("##### Database (Memory)")
     if now['fifo'].get('db_msg'):
         st.warning(now['fifo']['db_msg'])
         
-    db_df_fifo = pd.DataFrame([{"Block Addr": k, "Data": v} for k, v in now['fifo']['db_state'].items()])
-    st.dataframe(db_df_fifo if not db_df_fifo.empty else pd.DataFrame(columns=["Block Addr", "Data"]), use_container_width=True, height=200)
+    db_df_fifo = pd.DataFrame([{"Key": k, "Data": v} for k, v in now['fifo']['db_state'].items()])
+    if not db_df_fifo.empty:
+        updated_key_fifo = now['fifo'].get('db_updated_key')
+        def highlight_fifo(row):
+            if row['Key'] == updated_key_fifo:
+                return ['background-color: rgba(46, 125, 50, 0.5)'] * len(row)
+            return [''] * len(row)
+        st.dataframe(db_df_fifo.style.apply(highlight_fifo, axis=1), use_container_width=True, height=200)
+    else:
+        st.dataframe(pd.DataFrame(columns=["Key", "Data"]), use_container_width=True, height=200)
     
     st.markdown("#### Stats")
     st.write(f"**Hits:** {now['fifo']['hits']} | **Misses:** {now['fifo']['misses']} | **Evictions:** {now['fifo']['evictions']}")
@@ -222,12 +180,12 @@ with c_right:
     st.write(f"**Hit Rate:** {now['fifo']['hits']/tot*100:.1f}%" if tot > 0 else "**Hit Rate:** -")
     st.markdown(now['fifo'].get('amat_str', f"**EMAT:** {now['fifo'].get('amat', 0):.1f} ms"))
 
-# ── EMAT Over Time Chart ──
 st.divider()
 st.subheader("EMAT Over Time")
 
 chart_rows = []
-for s in history[:idx]:
+for s in history[:idx + 1]:
+    if s["step"] == 0: continue # Skip initial step for chart
     chart_rows.append({
         "Step": s["step"],
         "LRU": s["lru"]["amat"],
