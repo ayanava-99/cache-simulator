@@ -53,10 +53,3 @@ class LRUCache:
             else:
                 res.append(None)
         return res
-
-    def reset(self) -> None:
-        self.cache.clear()
-        self.dirty.clear()
-
-    def __len__(self) -> int:
-        return len(self.cache)
