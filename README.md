@@ -1,63 +1,37 @@
-# Hardware Cache Simulator
+# cache simulator
 
-A visual, step-by-step hardware cache simulator built with Streamlit. This application mathematically models cache behavior at the hardware level, fully simulating **Tag, Index, and Offset bit manipulation**, set-associativity, and block-aligned memory access.
+a simple visual cache simulator built with python and streamlit
+it compares least recently used and first in first out cache replacement policies
+it calculates the effective memory access time to show which cache is faster on average
 
-It natively compares **Least Recently Used (LRU)** vs **First-In-First-Out (FIFO)** replacement policies side-by-side, rendering a real-time Cache Occupancy Heatmap and an **EMAT (Effective Memory Access Time) graph** to visually demonstrate cache pressure, thrashing, and Belady's Anomaly.
+## features
 
-![Heatmap Demonstration](https://raw.githubusercontent.com/ayanava-99/cache-simulator/master/media/demo.png)
+it models a simple key value cache
+you can configure the cache size
+it compares lru and fifo side by side
+it supports write through and write back policies
+write back delays memory writes until a dirty eviction occurs
 
-## Core Features
+## installation
 
-- **True Hardware Modeling:** Built on an 8-bit memory address space with 4-byte block sizes. Configure Cache Size and N-Way Associativity. The engine dynamically calculates and isolates `Tag`, `Index`, and `Offset` bits via bitwise operators for mathematically accurate block fetching.
-- **Occupancy Heatmap UI:** A visual "bird's-eye" view of all cache sets. Instantly spot Set Conflicts and Thrashing without drowning in data tables.
-- **EMAT Over Time Graph:** Watch the 🔵 LRU and 🔴 FIFO performance lines naturally diverge in real-time as the simulation progresses.
-- **Dynamic Policy Showdown:** Watch LRU and FIFO react to the same memory trace side-by-side.
-- **Write-Through vs Write-Back:** Observe how Write-Back delays Database (Memory) writes until a dirty eviction occurs, absorbing multiple writes to the same block instantly.
+clone the repository
+install requirements by running pip install r requirementstxt
+run the app by running streamlit run mainpy
 
-## Built-In Demonstration Traces
+## traces
 
-The simulator comes with 5 curated traces designed to mathematically trigger specific architecture phenomena. The sidebar traces are perfectly ordered for a sequential interview or presentation flow:
+you can upload custom txt traces
+for read use r key
+for write use w key value
+lines starting with hash are comments
 
-1. **Spatial Locality:** Proves how a 4-byte block size turns 1 miss into 3 free hits by fetching neighboring bytes.
-2. **Cache Thrashing (Conflict Misses):** Two addresses map to the exact same index and kick each other out repeatedly—until you slide Associativity from 1 to 2, jumping the hit rate from 0% to 67%.
-3. **Fast Divergence:** A trace highlighting exactly where LRU's MRU promotion algorithm saves a hit that FIFO misses.
-4. **Write-Back Demo:** Shows how a Write-Back cache absorbs 3 immediate writes instantly, isolating main memory until a conflict forces a dirty eviction.
-5. **Belady's Anomaly:** An exact mathematical sequence that proves giving a FIFO cache *more memory* actually makes it perform *worse*.
+## project files
 
-## Installation & Usage
-
-1. Clone the repository
-2. Install requirements:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Run the Streamlit app:
-   ```bash
-   streamlit run main.py
-   ```
-
-## Creating Custom Traces
-You can upload your own `.txt` traces. The parser accepts hexadecimal memory addresses.
-
-**Format:**
-* Read: `R <hex_address>` (e.g., `R 0x10`)
-* Write: `W <hex_address> <optional_value>` (e.g., `W 0x10 DATA`)
-
-Lines starting with `#` are ignored as comments.
-
-## Project Structure
-
-```text
-├── main.py            # Streamlit UI, Heatmap rendering, and EMAT graphing
-├── engine.py          # Core hardware cache wrapper, bitwise math, and EMAT logic
-├── parser.py          # Parses hexadecimal traces into int/string structures
-├── database.py        # Simulated slow backing-store memory
-├── lru.py             # LRU Set Associative logic
-├── fifo.py            # FIFO Set Associative logic
-├── test_engine.py     # Pytest suite asserting EMAT math, Write-Back delays, and Belady
-├── requirements.txt   # Dependencies
-├── .github/
-│   └── workflows/     # CI/CD Pipeline (runs pytest on push)
-├── media/             # Demo screenshots
-└── traces/            # Built-in demonstration trace files
-```
+mainpy contains the user interface and graphs
+enginepy contains the simulation logic and math
+parserpy reads the trace files
+databasepy simulates slow memory
+lrupy has the lru logic
+fifopy has the fifo logic
+requirementstxt lists dependencies
+traces folder has demo files
